@@ -1,123 +1,119 @@
 <%@ page contentType="text/html;charset=UTF-8" language="java" %>
-<%@ page import="java.util.List, com.attendance.model.Student" %>
+<%@ page import="java.util.List, com.attendance.model.Student, com.attendance.service.CallService" %>
 <%
+    // 检查是否登录（简单过滤）
     if(session.getAttribute("user") == null) {
-        response.sendRedirect("index.jsp");
+        response.sendRedirect("login.jsp");
         return;
     }
+    CallService callService = new CallService();
+    List<Student> students = callService.getAllStudents();
 %>
 <html>
 <head>
-    <title>点名界面</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <title>课堂点名系统 - 点名</title>
     <style>
-        body { font-family: "微软雅黑"; background: #e9ecef; text-align: center; padding-top: 50px; }
-        .call-card {
-            background: white; width: 500px; margin: auto; padding: 30px;
-            border-radius: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        }
-        .student-name { font-size: 48px; font-weight: bold; margin: 20px 0; color: #007bff; }
-        button { font-size: 20px; padding: 10px 20px; margin: 10px; border: none; border-radius: 8px; cursor: pointer; }
-        #callBtn { background: #28a745; color: white; }
-        #correctBtn { background: #17a2b8; color: white; }
-        #wrongBtn { background: #dc3545; color: white; }
-        .disabled-btn { opacity: 0.6; pointer-events: none; }
-        table { width: 80%; margin: 30px auto; border-collapse: collapse; background: white; }
+        body { font-family: "微软雅黑"; background: #f0f2f5; text-align: center; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: auto; background: white; border-radius: 8px; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .call-area { background: #e9ecef; border-radius: 8px; padding: 30px; margin-bottom: 30px; }
+        .student-name { font-size: 48px; font-weight: bold; color: #007bff; margin: 20px 0; }
+        button { font-size: 20px; padding: 10px 20px; margin: 10px; border: none; border-radius: 5px; cursor: pointer; }
+        .btn-call { background: #28a745; color: white; }
+        .btn-correct { background: #007bff; color: white; }
+        .btn-wrong { background: #dc3545; color: white; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
         th { background: #007bff; color: white; }
+        .info { margin-top: 20px; font-size: 14px; color: gray; }
     </style>
 </head>
 <body>
-<div class="call-card">
-    <h2>📢 课堂点名系统</h2>
-    <div class="student-name" id="studentName">——</div>
-    <button id="callBtn">🎲 开始点名</button>
-    <button id="correctBtn" disabled>✔️ 答对</button>
-    <button id="wrongBtn" disabled>❌ 答错</button>
-</div>
+<div class="container">
+    <h2>课堂点名系统</h2>
+    <div class="call-area">
+        <div class="student-name" id="studentName">--- 点击点名 ---</div>
+        <div>
+            <button class="btn-call" id="callBtn">🎲 开始点名</button>
+            <button class="btn-correct" id="correctBtn" disabled>✓ 答对</button>
+            <button class="btn-wrong" id="wrongBtn" disabled>✗ 答错</button>
+        </div>
+        <div class="info" id="infoMsg"></div>
+    </div>
 
-<h3>📊 学生点名统计</h3>
-<table id="statTable">
-    <thead>
-    <tr><th>学号</th><th>姓名</th><th>班级</th><th>点名次数</th><th>答对次数</th><th>正确率</th></tr>
-    </thead>
-    <tbody></tbody>
-</table>
+    <h3>学生点名统计表</h3>
+    <table id="studentTable">
+        <thead>
+        <tr><th>学号</th><th>姓名</th><th>班级</th><th>点名次数</th><th>答对次数</th><th>正确率</th></tr>
+        </thead>
+        <tbody>
+        <% for(Student s : students) { %>
+        <tr>
+            <td><%= s.getStudentId() %></td>
+            <td><%= s.getName() %></td>
+            <td><%= s.getClassName() %></td>
+            <td><%= s.getTotalCalled() %></td>
+            <td><%= s.getTotalCorrect() %></td>
+            <td><%= String.format("%.1f%%", s.getCorrectRate()) %></td>
+        </tr>
+        <% } %>
+        </tbody>
+    </table>
+</div>
 
 <script>
     let currentStudentId = null;
+    const callBtn = document.getElementById('callBtn');
+    const correctBtn = document.getElementById('correctBtn');
+    const wrongBtn = document.getElementById('wrongBtn');
+    const studentNameSpan = document.getElementById('studentName');
+    const infoMsg = document.getElementById('infoMsg');
 
-    function loadStudentList() {
-        $.ajax({
-            url: 'stat',
-            type: 'GET',
-            dataType: 'json',
-            success: function(data) {
-                let html = '';
-                for(let i=0; i<data.length; i++) {
-                    let s = data[i];
-                    html += `<tr>
-                        <td>${s.studentId}</td>
-                        <td>${s.name}</td>
-                        <td>${s.className}</td>
-                        <td>${s.totalCalled}</td>
-                        <td>${s.totalCorrect}</td>
-                        <td>${(s.correctRate).toFixed(1)}%</td>
-                    </tr>`;
-                }
-                $('#statTable tbody').html(html);
-            }
-        });
-    }
-
-    function callStudent() {
-        $.ajax({
-            url: 'call?action=getStudent',
-            type: 'GET',
-            success: function(student) {
-                if(student && student.studentId) {
-                    $('#studentName').text(student.name);
-                    currentStudentId = student.studentId;
-                    $('#callBtn').prop('disabled', true).addClass('disabled-btn');
-                    $('#correctBtn').prop('disabled', false).removeClass('disabled-btn');
-                    $('#wrongBtn').prop('disabled', false).removeClass('disabled-btn');
+    // 点名
+    callBtn.onclick = function() {
+        fetch('call?action=getStudent')
+            .then(response => response.json())
+            .then(data => {
+                if(data && data.studentId) {
+                    currentStudentId = data.studentId;
+                    studentNameSpan.innerHTML = data.name;
+                    correctBtn.disabled = false;
+                    wrongBtn.disabled = false;
+                    callBtn.disabled = true;
+                    infoMsg.innerHTML = `点名：${data.name} (学号:${data.studentId})，请判断是否答对`;
                 } else {
-                    alert('暂无学生数据，请先导入学生');
+                    infoMsg.innerHTML = "没有学生数据，请先导入学生";
                 }
-            }
-        });
-    }
+            })
+            .catch(err => {
+                console.error(err);
+                infoMsg.innerHTML = "点名失败，请检查后端";
+            });
+    };
 
+    // 记录结果
     function recordResult(isCorrect) {
         if(!currentStudentId) return;
-        $.ajax({
-            url: 'call?action=record&studentId=' + currentStudentId + '&isCorrect=' + isCorrect,
-            type: 'GET',
-            success: function(res) {
-                if(res === 'success') {
-                    alert(isCorrect ? '回答正确！' : '回答错误');
+        fetch(`call?action=record&studentId=${currentStudentId}&isCorrect=${isCorrect}`)
+            .then(response => response.text())
+            .then(data => {
+                if(data === "success") {
+                    infoMsg.innerHTML = isCorrect ? "✓ 记录成功：答对了！" : "✗ 记录成功：答错了";
                     // 重置界面
-                    $('#studentName').text('——');
                     currentStudentId = null;
-                    $('#callBtn').prop('disabled', false).removeClass('disabled-btn');
-                    $('#correctBtn').prop('disabled', true).addClass('disabled-btn');
-                    $('#wrongBtn').prop('disabled', true).addClass('disabled-btn');
-                    loadStudentList(); // 刷新表格
+                    studentNameSpan.innerHTML = "--- 点击点名 ---";
+                    correctBtn.disabled = true;
+                    wrongBtn.disabled = true;
+                    callBtn.disabled = false;
+                    // 刷新表格（简单刷新页面，或使用AJAX局部刷新）
+                    setTimeout(() => location.reload(), 1000);
                 } else {
-                    alert('记录失败');
+                    infoMsg.innerHTML = "记录失败，请重试";
                 }
-            }
-        });
+            });
     }
 
-    $(function() {
-        loadStudentList();
-        $('#callBtn').click(callStudent);
-        $('#correctBtn').click(function() { recordResult(true); });
-        $('#wrongBtn').click(function() { recordResult(false); });
-        // 每10秒自动刷新列表
-        setInterval(loadStudentList, 10000);
-    });
+    correctBtn.onclick = () => recordResult(true);
+    wrongBtn.onclick = () => recordResult(false);
 </script>
 </body>
 </html>
