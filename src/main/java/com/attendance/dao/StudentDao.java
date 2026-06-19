@@ -75,18 +75,66 @@ public class StudentDao {
         }
     }
 
-    // 添加学生（可用于批量导入扩展）
+    // 添加学生
     public boolean addStudent(Student student) {
-        String sql = "INSERT INTO student(student_id, name, class_name) VALUES(?,?,?)";
-        try (Connection conn = JDBCUtil.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, student.getStudentId());
-            ps.setString(2, student.getName());
-            ps.setString(3, student.getClassName());
-            return ps.executeUpdate() > 0;
+        try (Connection conn = JDBCUtil.getConnection()) {
+            return addStudent(conn, student);
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
         }
+    }
+
+    // 使用外部传入的连接（支持事务）
+    public boolean addStudent(Connection conn, Student student) throws SQLException {
+        String sql = "INSERT INTO student(student_id, name, class_name) VALUES(?,?,?)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, student.getStudentId());
+            ps.setString(2, student.getName());
+            ps.setString(3, student.getClassName());
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    // 统计学生总数
+    public int countAll() {
+        String sql = "SELECT COUNT(*) FROM student";
+        try (Connection conn = JDBCUtil.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) return rs.getInt(1);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    // 统计总点名次数
+    public int totalCalled() {
+        String sql = "SELECT COALESCE(SUM(total_called), 0) FROM student";
+        try (Connection conn = JDBCUtil.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) return rs.getInt(1);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    // 统计各班级人数
+    public List<String[]> classDistribution() {
+        List<String[]> list = new ArrayList<>();
+        String sql = "SELECT class_name, COUNT(*) AS cnt FROM student GROUP BY class_name ORDER BY cnt DESC";
+        try (Connection conn = JDBCUtil.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                list.add(new String[]{rs.getString("class_name"), String.valueOf(rs.getInt("cnt"))});
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
     }
 }
