@@ -14,31 +14,45 @@ import java.io.IOException;
 
 @WebServlet("/call")
 public class CallServlet extends HttpServlet {
+
     private CallService callService = new CallService();
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        String action = req.getParameter("action");
-        HttpSession session = req.getSession();
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+
+        request.setCharacterEncoding("UTF-8");
+        response.setContentType("application/json;charset=UTF-8");
+
+        String action = request.getParameter("action");
+        HttpSession session = request.getSession();
 
         if ("getStudent".equals(action)) {
             Integer wrong = (Integer) session.getAttribute("consecutiveWrong");
             if (wrong == null) wrong = 0;
-            boolean needHighScore = wrong >= 3;
+            boolean needHighScore = (wrong >= 3);
 
             Student student = callService.selectStudent(needHighScore);
-            resp.setContentType("application/json");
+
             if (student != null) {
                 ObjectMapper mapper = new ObjectMapper();
-                mapper.writeValue(resp.getWriter(), student);
+                String json = mapper.writeValueAsString(student);
+                response.getWriter().write(json);
             } else {
-                resp.getWriter().write("{}");
+                response.getWriter().write("{}");
             }
+
         } else if ("record".equals(action)) {
-            String studentId = req.getParameter("studentId");
-            boolean isCorrect = "true".equals(req.getParameter("isCorrect"));
+            String studentId = request.getParameter("studentId");
+            boolean isCorrect = "true".equals(request.getParameter("isCorrect"));
+
+            if (studentId == null || studentId.trim().isEmpty()) {
+                response.getWriter().write("fail");
+                return;
+            }
 
             boolean success = callService.recordResult(studentId, isCorrect);
+
             if (success) {
                 if (isCorrect) {
                     session.setAttribute("consecutiveWrong", 0);
@@ -47,10 +61,12 @@ public class CallServlet extends HttpServlet {
                     if (wrong == null) wrong = 0;
                     session.setAttribute("consecutiveWrong", wrong + 1);
                 }
-                resp.getWriter().write("success");
+                response.getWriter().write("success");
             } else {
-                resp.getWriter().write("fail");
+                response.getWriter().write("fail");
             }
+        } else {
+            response.getWriter().write("unknown action");
         }
     }
 }

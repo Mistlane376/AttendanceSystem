@@ -56,16 +56,22 @@ public class StudentDao {
 
     // 更新点名结果（增加点名次数和答对次数）
     public boolean updateCallResult(String studentId, boolean isCorrect) {
-        String sql = "UPDATE student SET total_called = total_called + 1, " +
-                "total_correct = total_correct + ? WHERE student_id = ?";
-        try (Connection conn = JDBCUtil.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, isCorrect ? 1 : 0);
-            ps.setString(2, studentId);
-            return ps.executeUpdate() > 0;
+        try (Connection conn = JDBCUtil.getConnection()) {
+            return updateCallResult(conn, studentId, isCorrect);
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
+        }
+    }
+
+    // 使用外部传入的连接（支持事务）
+    public boolean updateCallResult(Connection conn, String studentId, boolean isCorrect) throws SQLException {
+        String sql = "UPDATE student SET total_called = total_called + 1, " +
+                "total_correct = total_correct + ? WHERE student_id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, isCorrect ? 1 : 0);
+            ps.setString(2, studentId);
+            return ps.executeUpdate() > 0;
         }
     }
 

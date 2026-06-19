@@ -4,7 +4,10 @@ import com.attendance.dao.StudentDao;
 import com.attendance.dao.RecordDao;
 import com.attendance.model.Record;
 import com.attendance.model.Student;
+import com.attendance.util.JDBCUtil;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.Date;
 import java.util.List;
 import java.util.Random;
@@ -24,7 +27,6 @@ public class CallService {
         if (allStudents.isEmpty()) return null;
 
         if (needHighScore) {
-            // 从答对次数最多的学生中选（已点名过的）
             List<Student> highScore = allStudents.stream()
                     .filter(s -> s.getTotalCalled() > 0)
                     .collect(Collectors.toList());
@@ -36,10 +38,8 @@ public class CallService {
                 Random rand = new Random();
                 return candidates.get(rand.nextInt(candidates.size()));
             }
-            // 如果没有已经点过的，回退到正常点名
         }
 
-        // 正常点名：优先选择被点名次数最少的学生（包括未点过的）
         int minCalled = allStudents.stream().mapToInt(Student::getTotalCalled).min().orElse(0);
         List<Student> candidates = allStudents.stream()
                 .filter(s -> s.getTotalCalled() == minCalled)
@@ -48,14 +48,40 @@ public class CallService {
         return candidates.get(rand.nextInt(candidates.size()));
     }
 
-    // 记录点名结果（更新学生表 + 插入记录表）
+    // 记录点名结果（更新学生表 + 插入记录表，同一事务）
     public boolean recordResult(String studentId, boolean isCorrect) {
-        boolean updated = studentDao.updateCallResult(studentId, isCorrect);
-        if (updated) {
+        Connection conn = null;
+        try {
+            conn = JDBCUtil.getConnection();
+            conn.setAutoCommit(false);
+
+            boolean updated = studentDao.updateCallResult(conn, studentId, isCorrect);
+            if (!updated) {
+                conn.rollback();
+                return false;
+            }
+
             Record record = new Record(studentId, new Date(), isCorrect);
-            recordDao.addRecord(record);
+            boolean inserted = recordDao.addRecord(conn, record);
+            if (!inserted) {
+                conn.rollback();
+                return false;
+            }
+
+            conn.commit();
+            return true;
+        } catch (SQLException e) {
+            if (conn != null) {
+                try { conn.rollback(); } catch (SQLException ex) { ex.printStackTrace(); }
+            }
+            e.printStackTrace();
+            return false;
+        } finally {
+            if (conn != null) {
+                try { conn.setAutoCommit(true); } catch (SQLException e) { e.printStackTrace(); }
+                JDBCUtil.close(conn, null, null);
+            }
         }
-        return updated;
     }
 
     public List<Student> getAllStudents() {

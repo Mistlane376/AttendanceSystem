@@ -1,7 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" language="java" %>
 <%@ page import="java.util.List, com.attendance.model.Student, com.attendance.service.CallService" %>
 <%
-    // 检查是否登录（简单过滤）
+    // 检查是否登录（如果不需要登录可以注释掉）
     if(session.getAttribute("user") == null) {
         response.sendRedirect("login.jsp");
         return;
@@ -61,7 +61,9 @@
 </div>
 
 <script>
+    // 全局变量：当前点名的学生学号
     let currentStudentId = null;
+
     const callBtn = document.getElementById('callBtn');
     const correctBtn = document.getElementById('correctBtn');
     const wrongBtn = document.getElementById('wrongBtn');
@@ -73,8 +75,9 @@
         fetch('call?action=getStudent')
             .then(response => response.json())
             .then(data => {
+                console.log("点名返回数据:", data);  // 调试：控制台查看返回的学生对象
                 if(data && data.studentId) {
-                    currentStudentId = data.studentId;
+                    currentStudentId = data.studentId;   // 关键：保存学号
                     studentNameSpan.innerHTML = data.name;
                     correctBtn.disabled = false;
                     wrongBtn.disabled = false;
@@ -85,18 +88,24 @@
                 }
             })
             .catch(err => {
-                console.error(err);
+                console.error("点名请求失败:", err);
                 infoMsg.innerHTML = "点名失败，请检查后端";
             });
     };
 
-    // 记录结果
+    // 记录结果（答对/答错）
     function recordResult(isCorrect) {
-        if(!currentStudentId) return;
-        fetch(`call?action=record&studentId=${currentStudentId}&isCorrect=${isCorrect}`)
+        if(!currentStudentId) {
+            infoMsg.innerHTML = "错误：没有当前点名学生，请先点名";
+            console.error("recordResult: currentStudentId 为空");
+            return;
+        }
+        console.log("发送记录请求: studentId=" + currentStudentId + ", isCorrect=" + isCorrect);
+        fetch('call?action=record&studentId=' + encodeURIComponent(currentStudentId) + '&isCorrect=' + isCorrect)
             .then(response => response.text())
-            .then(data => {
-                if(data === "success") {
+            .then(result => {
+                console.log("记录结果返回:", result);
+                if(result === "success") {
                     infoMsg.innerHTML = isCorrect ? "✓ 记录成功：答对了！" : "✗ 记录成功：答错了";
                     // 重置界面
                     currentStudentId = null;
@@ -104,11 +113,15 @@
                     correctBtn.disabled = true;
                     wrongBtn.disabled = true;
                     callBtn.disabled = false;
-                    // 刷新表格（简单刷新页面，或使用AJAX局部刷新）
-                    setTimeout(() => location.reload(), 1000);
+                    // 刷新页面以更新表格
+                    setTimeout(() => location.reload(), 800);
                 } else {
-                    infoMsg.innerHTML = "记录失败，请重试";
+                    infoMsg.innerHTML = "记录失败，请重试（后端返回：" + result + "）";
                 }
+            })
+            .catch(err => {
+                console.error("记录请求失败:", err);
+                infoMsg.innerHTML = "记录请求发送失败，请检查网络";
             });
     }
 
