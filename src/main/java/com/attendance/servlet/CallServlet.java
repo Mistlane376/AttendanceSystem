@@ -14,59 +14,30 @@ import java.io.IOException;
 
 @WebServlet("/call")
 public class CallServlet extends HttpServlet {
-
     private CallService callService = new CallService();
 
-    @Override
-    protected void doGet(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-
-        request.setCharacterEncoding("UTF-8");
-        response.setContentType("application/json;charset=UTF-8");
-
-        String action = request.getParameter("action");
-        HttpSession session = request.getSession();
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        req.setCharacterEncoding("UTF-8");
+        resp.setContentType("application/json;charset=UTF-8");
+        String action = req.getParameter("action");
+        HttpSession session = req.getSession();
 
         if ("getStudent".equals(action)) {
-            Integer wrong = (Integer) session.getAttribute("consecutiveWrong");
-            if (wrong == null) wrong = 0;
-            boolean needHighScore = (wrong >= 3);
-
-            Student student = callService.selectStudent(needHighScore);
-
-            if (student != null) {
-                ObjectMapper mapper = new ObjectMapper();
-                String json = mapper.writeValueAsString(student);
-                response.getWriter().write(json);
-            } else {
-                response.getWriter().write("{}");
-            }
+            Integer w = (Integer) session.getAttribute("cw");
+            boolean high = (w != null && w >= 3);
+            Student s = callService.selectStudent(high);
+            resp.getWriter().write(s != null ? new ObjectMapper().writeValueAsString(s) : "{}");
 
         } else if ("record".equals(action)) {
-            String studentId = request.getParameter("studentId");
-            boolean isCorrect = "true".equals(request.getParameter("isCorrect"));
-
-            if (studentId == null || studentId.trim().isEmpty()) {
-                response.getWriter().write("fail");
-                return;
-            }
-
-            boolean success = callService.recordResult(studentId, isCorrect);
-
-            if (success) {
-                if (isCorrect) {
-                    session.setAttribute("consecutiveWrong", 0);
-                } else {
-                    Integer wrong = (Integer) session.getAttribute("consecutiveWrong");
-                    if (wrong == null) wrong = 0;
-                    session.setAttribute("consecutiveWrong", wrong + 1);
-                }
-                response.getWriter().write("success");
+            String sid = req.getParameter("studentId");
+            boolean ok = "true".equals(req.getParameter("isCorrect"));
+            if (sid == null || sid.trim().isEmpty()) { resp.getWriter().write("fail"); return; }
+            if (callService.recordResult(sid, ok)) {
+                session.setAttribute("cw", ok ? 0 : ((Integer) session.getAttribute("cw") != null ? (Integer) session.getAttribute("cw") + 1 : 1));
+                resp.getWriter().write("success");
             } else {
-                response.getWriter().write("fail");
+                resp.getWriter().write("fail");
             }
-        } else {
-            response.getWriter().write("unknown action");
         }
     }
 }

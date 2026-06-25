@@ -16,7 +16,6 @@ public class Record {
         this.isCorrect = isCorrect;
     }
 
-    // Getters and Setters
     public int getId() { return id; }
     public void setId(int id) { this.id = id; }
     public String getStudentId() { return studentId; }
