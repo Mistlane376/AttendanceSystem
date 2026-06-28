@@ -15,12 +15,13 @@ button:hover{background:#357abd}
 <body>
 <div class="box">
 <h2>课堂点名系统</h2>
+<% String msg=(String)request.getAttribute("msg"); if(msg!=null){ %><div class="err" style="color:#27ae60"><%=msg%></div><% } %>
 <% String e=(String)request.getAttribute("errorMsg"); if(e!=null){ %><div class="err"><%=e%></div><% } %>
 <form action="loginCheck" method="post">
 <input type="text" name="username" placeholder="用户名" required>
 <input type="password" name="password" placeholder="密码" required>
 <button type="submit">登录</button>
 </form>
-<div class="hint">默认: admin / 123</div>
+<div class="hint">默认: admin / 123 ｜ <a href="register.jsp" style="color:#4a90d9">注册</a></div>
 </div>
 </body></html>

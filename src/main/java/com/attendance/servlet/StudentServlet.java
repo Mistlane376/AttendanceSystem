@@ -28,10 +28,19 @@ public class StudentServlet extends HttpServlet {
             Student s = new Student();
             s.setStudentId(req.getParameter("studentId"));
             s.setName(req.getParameter("name"));
+            s.setGender(req.getParameter("gender"));
             s.setClassName(req.getParameter("className"));
             result.put("success", studentService.updateStudent(s));
         } else if ("delete".equals(action)) {
             result.put("success", studentService.deleteStudent(req.getParameter("studentId")));
+        } else if ("clearAll".equals(action)) {
+            int n = studentService.deleteAll();
+            result.put("success", n > 0);
+            result.put("count", n);
+        } else if ("deleteByClass".equals(action)) {
+            String cls = req.getParameter("className");
+            if (cls == null || cls.trim().isEmpty()) { result.put("error", "请指定班级"); }
+            else { int n = studentService.deleteByClass(cls); result.put("success", n > 0); result.put("count", n); }
         } else {
             result.put("error", "未知操作");
         }

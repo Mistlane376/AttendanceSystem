@@ -4,6 +4,7 @@ public class Student {
     private int id;
     private String studentId;
     private String name;
+    private String gender;
     private String className;
     private int totalCalled;
     private int totalCorrect;
@@ -13,6 +14,14 @@ public class Student {
     public Student(String studentId, String name, String className) {
         this.studentId = studentId;
         this.name = name;
+        this.gender = "";
+        this.className = className;
+    }
+
+    public Student(String studentId, String name, String gender, String className) {
+        this.studentId = studentId;
+        this.name = name;
+        this.gender = gender;
         this.className = className;
     }
 
@@ -22,6 +31,8 @@ public class Student {
     public void setStudentId(String studentId) { this.studentId = studentId; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+    public String getGender() { return gender; }
+    public void setGender(String gender) { this.gender = gender; }
     public String getClassName() { return className; }
     public void setClassName(String className) { this.className = className; }
     public int getTotalCalled() { return totalCalled; }

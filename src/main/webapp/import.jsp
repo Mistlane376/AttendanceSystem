@@ -22,6 +22,7 @@ th{background:#f5f6fa;color:#666;font-size:12px}
 .msg{padding:10px;border-radius:4px;font-size:14px;margin-top:8px;display:none}
 .msg.s{background:#d4edda;color:#155724;display:block}
 .msg.e{background:#f8d7da;color:#721c24;display:block}
+.msg.w{background:#fff3cd;color:#856404;display:block}
 .tabs{display:flex;gap:0;margin-bottom:16px}
 .tab{padding:8px 20px;border:1px solid #ddd;background:#f5f6fa;cursor:pointer;font-size:14px}
 .tab.on{background:#4a90d9;color:#fff;border-color:#4a90d9}
@@ -59,9 +60,9 @@ th{background:#f5f6fa;color:#666;font-size:12px}
 </div>
 
 <div id="tab1" style="display:none">
-<table><thead><tr><th>学号</th><th>姓名</th><th>班级</th><th>操作</th></tr></thead>
+<table><thead><tr><th>学号</th><th>姓名</th><th>性别</th><th>班级</th><th>操作</th></tr></thead>
 <tbody id="mtbody">
-<tr><td><input type="text" id="s0" style="width:100px"></td><td><input type="text" id="n0" style="width:80px"></td><td><input type="text" id="c0" style="width:120px"></td><td><button class="btn btn-o" style="font-size:12px" onclick="delRow(this)">删除</button></td></tr>
+<tr><td><input type="text" id="s0" style="width:100px"></td><td><input type="text" id="n0" style="width:80px"></td><td><select id="g0" style="padding:6px 4px;font-size:13px"><option value="">--</option><option value="男">男</option><option value="女">女</option></select></td><td><input type="text" id="c0" style="width:110px"></td><td><button class="btn btn-o" style="font-size:12px" onclick="delRow(this)">删除</button></td></tr>
 </tbody></table>
 <button class="btn btn-o" style="margin-top:8px" onclick="addRow()">+ 添加</button>
 <button class="btn btn-p" style="margin-top:8px" onclick="submitManual()">提交</button>
@@ -72,8 +73,9 @@ th{background:#f5f6fa;color:#666;font-size:12px}
 <div class="card">
 <h3>导入说明</h3>
 <p style="font-size:13px;color:#666;line-height:1.8">
-每行格式：<b>学号,姓名,班级</b><br>
-Excel 文件第一行如果是标题会自动跳过。CSV/TXT 用逗号、Tab 或分号分隔。
+每行格式：<b>学号,姓名,性别,班级</b>（4列）或 <b>学号,姓名,班级</b>（3列兼容）<br>
+Excel 第一行如果是标题会自动跳过。CSV/TXT 用逗号、Tab 或分号分隔。<br>
+重复学号会被自动跳过，导入结果会提示重复数量。
 </p>
 </div>
 </div>
@@ -99,25 +101,39 @@ function upload(){
     if(!file)return;var fd=new FormData();fd.append("file",file);
     document.getElementById("upBtn").disabled=true;
     fetch("import",{method:"POST",body:fd}).then(function(r){return r.json()}).then(function(d){
-        document.getElementById("upBtn").disabled=false;
-        var m=document.getElementById("msg0");
+        document.getElementById("upBtn").disabled=false; var m=document.getElementById("msg0");
         if(d.error){m.className="msg e";m.textContent=d.error}
+        else if(d.dup>0){m.className="msg w";m.textContent="成功 "+d.success+" 条, 失败 "+d.fail+" 条, 已跳过重复学号 "+d.dup+" 条"}
         else{m.className="msg s";m.textContent="成功 "+d.success+" 条, 失败 "+d.fail+" 条"}
     });
 }
-// 手动
-function addRow(){var t=document.getElementById("mtbody");
-    t.innerHTML+='<tr><td><input type="text" id="s'+rowCount+'" style="width:100px"></td><td><input type="text" id="n'+rowCount+'" style="width:80px"></td><td><input type="text" id="c'+rowCount+'" style="width:120px"></td><td><button class="btn btn-o" style="font-size:12px" onclick="delRow(this)">删除</button></td></tr>';
-    rowCount++}
+// 手动 - 使用 insertRow 避免清空已有输入
+function addRow(){
+    var t=document.getElementById("mtbody"), tr=t.insertRow(), idx=rowCount++;
+    tr.innerHTML='<td><input type="text" id="s'+idx+'" style="width:100px"></td>'
+        +'<td><input type="text" id="n'+idx+'" style="width:80px"></td>'
+        +'<td><select id="g'+idx+'" style="padding:6px 4px;font-size:13px"><option value="">--</option><option value="男">男</option><option value="女">女</option></select></td>'
+        +'<td><input type="text" id="c'+idx+'" style="width:110px"></td>'
+        +'<td><button class="btn btn-o" style="font-size:12px" onclick="delRow(this)">删除</button></td>';
+}
 function delRow(b){var r=b.closest("tr");if(document.querySelectorAll("#mtbody tr").length>1)r.remove();else{r.querySelectorAll("input").forEach(function(i){i.value=""})}}
 function submitManual(){
-    var list=[],rows=document.querySelectorAll("#mtbody tr");
-    rows.forEach(function(r){var is=r.querySelectorAll("input");if(is[0].value.trim()&&is[1].value.trim())list.push({studentId:is[0].value.trim(),name:is[1].value.trim(),className:is[2].value.trim()})});
-    if(list.length==0){document.getElementById("msg1").className="msg e";document.getElementById("msg1").textContent="请填写数据";return}
+    var list=[], rows=document.querySelectorAll("#mtbody tr"), seen={}, dup=[];
+    rows.forEach(function(r){
+        var is=r.querySelectorAll("input"), sel=r.querySelector("select");
+        var sid=is[0].value.trim(), name=is[1].value.trim(), gender=sel?sel.value:"", cls=is[2].value.trim();
+        if(sid && name){
+            if(seen[sid]){ dup.push(sid); }
+            else{ seen[sid]=true; list.push({studentId:sid, name:name, gender:gender, className:cls}); }
+        }
+    });
+    if(list.length===0){document.getElementById("msg1").className="msg e";document.getElementById("msg1").textContent="请填写数据";return}
+    if(dup.length>0 && !confirm("以下学号在本次录入中重复，将被跳过:\n"+dup.join("\n")+"\n\n是否继续提交？"))return;
     var fd=new FormData();fd.append("type","batch");fd.append("data",JSON.stringify(list));
     fetch("import",{method:"POST",body:fd}).then(function(r){return r.json()}).then(function(d){
         var m=document.getElementById("msg1");
         if(d.error){m.className="msg e";m.textContent=d.error}
+        else if(d.dup>0){m.className="msg w";m.textContent="成功 "+d.success+" 条, 失败 "+d.fail+" 条, 已跳过重复学号 "+d.dup+" 条"}
         else{m.className="msg s";m.textContent="成功 "+d.success+" 条, 失败 "+d.fail+" 条"}
     });
 }

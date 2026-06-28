@@ -30,7 +30,8 @@ public class ImportServlet extends HttpServlet {
             for (Map<String, String> m : raw) {
                 String sid = m.getOrDefault("studentId", "").trim();
                 String name = m.getOrDefault("name", "").trim();
-                if (!sid.isEmpty() && !name.isEmpty()) list.add(new Student(sid, name, m.getOrDefault("className", "").trim()));
+                if (!sid.isEmpty() && !name.isEmpty()) list.add(new Student(sid, name,
+                        m.getOrDefault("gender", "").trim(), m.getOrDefault("className", "").trim()));
             }
             Map<String, Object> r = studentService.batchImport(list); r.put("total", list.size());
             resp.getWriter().write(mapper.writeValueAsString(r));

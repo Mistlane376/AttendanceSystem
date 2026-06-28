@@ -1,5 +1,8 @@
 package com.attendance.servlet;
 
+import com.attendance.dao.UserDao;
+import com.attendance.model.User;
+
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
@@ -8,35 +11,47 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.io.IOException;
 
-@WebServlet("/loginCheck")   // 这个路径必须和表单action一致
+@WebServlet("/loginCheck")
 public class LoginCheckServlet extends HttpServlet {
+    private UserDao userDao = new UserDao();
 
-    @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        req.setCharacterEncoding("UTF-8");
+        String username = req.getParameter("username");
+        String password = req.getParameter("password");
 
-        // 获取用户输入的用户名和密码
-        String username = request.getParameter("username");
-        String password = request.getParameter("password");
-
-        // 简单验证（硬编码，仅用于测试）
-        // 正式使用时可以改成从数据库查询
-        if ("admin".equals(username) && "123".equals(password)) {
-            // 登录成功，保存用户信息到 session
-            HttpSession session = request.getSession();
-            session.setAttribute("user", username);
-            // 跳转到点名主页面
-            response.sendRedirect("call.jsp");
-        } else {
-            // 登录失败，返回登录页并显示错误信息
-            request.setAttribute("errorMsg", "用户名或密码错误");
-            request.getRequestDispatcher("login.jsp").forward(request, response);
+        if (username == null || password == null) {
+            req.setAttribute("errorMsg", "请输入用户名和密码");
+            req.getRequestDispatcher("login.jsp").forward(req, resp);
+            return;
         }
+
+        // 先查数据库
+        User user = userDao.findByUsername(username);
+        if (user != null && user.getPassword().equals(password)) {
+            HttpSession session = req.getSession();
+            session.setAttribute("user", username);
+            session.setAttribute("role", user.getRole());
+            resp.sendRedirect("call.jsp");
+            return;
+        }
+
+        // 如果数据库无此用户，回退到默认管理员（仅当未注册过时）
+        if ("admin".equals(username) && "123".equals(password) && userDao.countAll() == 0) {
+            // 自动创建管理员账号
+            userDao.addUser(new User("admin", "123"));
+            HttpSession session = req.getSession();
+            session.setAttribute("user", username);
+            session.setAttribute("role", "admin");
+            resp.sendRedirect("call.jsp");
+            return;
+        }
+
+        req.setAttribute("errorMsg", "用户名或密码错误");
+        req.getRequestDispatcher("login.jsp").forward(req, resp);
     }
-    @Override
-    protected void doGet(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        // 如果用户直接访问 /loginCheck，也跳转到登录页
-        response.sendRedirect("login.jsp");
+
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        resp.sendRedirect("login.jsp");
     }
 }

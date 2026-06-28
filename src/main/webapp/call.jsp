@@ -72,15 +72,18 @@ th{background:#f5f6fa;color:#666;font-size:12px}
 <div class="card">
 <div class="toolbar">
 <input type="text" id="search" placeholder="搜索学号/姓名..." oninput="filter()">
+<button class="btn btn-sm btn-no" onclick="batchDelete()" style="margin-left:8px">按班级删除</button>
+<button class="btn btn-sm" style="background:#999;color:#fff;margin-left:4px" onclick="clearAll()">一键清空</button>
 </div>
 <div style="max-height:500px;overflow:auto">
-<table><thead><tr><th>学号</th><th>姓名</th><th>班级</th><th>点名</th><th>答对</th><th>正确率</th><th>操作</th></tr></thead>
+<table><thead><tr><th>学号</th><th>姓名</th><th>性别</th><th>班级</th><th>点名</th><th>答对</th><th>正确率</th><th>操作</th></tr></thead>
 <tbody id="tbody">
 <% for(Student s:students){ double r=s.getCorrectRate();
    String rc=r>=60?"green":(s.getTotalCalled()>0?"red":""); %>
 <tr data-sid="<%=s.getStudentId()%>">
 <td><%=s.getStudentId()%></td>
 <td class="name-cell"><%=s.getName()%></td>
+<td class="gender-cell"><%=s.getGender()!=null?s.getGender():""%></td>
 <td class="cls-cell"><%=s.getClassName()%></td>
 <td><%=s.getTotalCalled()%></td>
 <td><%=s.getTotalCorrect()%></td>
@@ -129,15 +132,17 @@ function filter(){
 
 function editRow(btn){
     var tr=btn.closest("tr"),sid=tr.getAttribute("data-sid");
-    var name=tr.querySelector(".name-cell"),cls=tr.querySelector(".cls-cell");
-    var oldName=name.textContent,oldCls=cls.textContent;
+    var name=tr.querySelector(".name-cell"),gender=tr.querySelector(".gender-cell"),cls=tr.querySelector(".cls-cell");
+    var oldName=name.textContent,oldGender=gender.textContent,oldCls=cls.textContent;
     name.innerHTML='<input type="text" id="eName" value="'+oldName+'" style="width:80px;padding:2px 4px;font-size:12px">';
+    gender.innerHTML='<select id="eGender" style="padding:2px 4px;font-size:12px"><option value="">--</option><option value="男"'+(oldGender=="男"?" selected":"")+'>男</option><option value="女"'+(oldGender=="女"?" selected":"")+'>女</option></select>';
     cls.innerHTML='<input type="text" id="eCls" value="'+oldCls+'" style="width:100px;padding:2px 4px;font-size:12px">';
     btn.textContent="保存";btn.className="btn btn-sm btn-call";btn.onclick=function(){saveEdit(tr,sid)};
 }
 function saveEdit(tr,sid){
     var fd=new FormData();fd.append("action","edit");fd.append("studentId",sid);
     fd.append("name",document.getElementById("eName").value);
+    fd.append("gender",document.getElementById("eGender").value);
     fd.append("className",document.getElementById("eCls").value);
     fetch("student",{method:"POST",body:fd}).then(function(r){return r.json()}).then(function(d){
         if(d.success)location.reload();else alert("保存失败");
@@ -150,6 +155,27 @@ function delStudent(btn){
     fetch("student",{method:"POST",body:fd}).then(function(r){return r.json()}).then(function(d){
         if(d.success){document.getElementById("tmsg").className="msg s";document.getElementById("tmsg").textContent="删除成功";setTimeout(function(){location.reload()},500);}
         else{document.getElementById("tmsg").className="msg e";document.getElementById("tmsg").textContent="删除失败"}
+    });
+}
+// 按班级删除
+function batchDelete(){
+    var cls=prompt("请输入要删除的班级名称：");
+    if(!cls||!cls.trim())return;
+    if(!confirm("确定删除班级【"+cls+"】的所有学生？此操作不可恢复！"))return;
+    var fd=new FormData();fd.append("action","deleteByClass");fd.append("className",cls.trim());
+    fetch("student",{method:"POST",body:fd}).then(function(r){return r.json()}).then(function(d){
+        if(d.success){document.getElementById("tmsg").className="msg s";document.getElementById("tmsg").textContent="已删除 "+d.count+" 名学生";setTimeout(function(){location.reload()},500);}
+        else{document.getElementById("tmsg").className="msg e";document.getElementById("tmsg").textContent="删除失败"}
+    });
+}
+// 一键清空
+function clearAll(){
+    if(!confirm("确定清空全部学生和点名记录？\n\n此操作不可恢复！"))return;
+    if(!confirm("再次确认：清空全部数据？"))return;
+    var fd=new FormData();fd.append("action","clearAll");
+    fetch("student",{method:"POST",body:fd}).then(function(r){return r.json()}).then(function(d){
+        if(d.success){document.getElementById("tmsg").className="msg s";document.getElementById("tmsg").textContent="已清空 "+d.count+" 名学生";setTimeout(function(){location.reload()},500);}
+        else{document.getElementById("tmsg").className="msg e";document.getElementById("tmsg").textContent="清空失败"}
     });
 }
 </script>

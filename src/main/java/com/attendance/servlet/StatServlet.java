@@ -27,16 +27,21 @@ public class StatServlet extends HttpServlet {
         String fmt = req.getParameter("format");
         if ("csv".equals(fmt)) {
             resp.setContentType("text/csv;charset=UTF-8");
-            resp.setHeader("Content-Disposition", "attachment; filename=stats.csv");
-            resp.getOutputStream().write(0xEF); resp.getOutputStream().write(0xBB); resp.getOutputStream().write(0xBF);
+            String filename = "attendance_stats_" + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss").format(new java.util.Date()) + ".csv";
+            resp.setHeader("Content-Disposition", "attachment; filename=\"" +
+                    java.net.URLEncoder.encode(filename, "UTF-8") + "\"");
             PrintWriter w = resp.getWriter();
-            w.println("排名,学号,姓名,班级,点名次数,答对次数,正确率");
+            // UTF-8 BOM 确保 Excel 正确识别中文
+            w.print('﻿');
+            w.println("排名,学号,姓名,性别,班级,点名次数,答对次数,正确率");
             List<Student> list = studentService.getAllStudents();
             list.sort((a,b) -> Double.compare(b.getCorrectRate(), a.getCorrectRate()));
             int rank = 1;
             for (Student s : list) {
-                w.printf("%d,%s,%s,%s,%d,%d,%.1f%%\n", rank++,
-                        s.getStudentId(), s.getName(), s.getClassName(),
+                w.printf("%d,%s,%s,%s,%s,%d,%d,%.1f%%\n", rank++,
+                        csv(s.getStudentId()), csv(s.getName()),
+                        csv(s.getGender() != null ? s.getGender() : ""),
+                        csv(s.getClassName()),
                         s.getTotalCalled(), s.getTotalCorrect(), s.getCorrectRate());
             }
             w.flush();
@@ -48,5 +53,13 @@ public class StatServlet extends HttpServlet {
             req.setAttribute("totalRecords", recordDao.countAll());
             req.getRequestDispatcher("stat.jsp").forward(req, resp);
         }
+    }
+
+    private static String csv(String val) {
+        if (val == null) return "";
+        if (val.contains(",") || val.contains("\"") || val.contains("\n")) {
+            return "\"" + val.replace("\"", "\"\"") + "\"";
+        }
+        return val;
     }
 }
