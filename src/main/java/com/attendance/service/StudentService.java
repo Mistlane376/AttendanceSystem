@@ -4,6 +4,7 @@ import com.attendance.dao.StudentDao;
 import com.attendance.model.Student;
 import com.attendance.util.JDBCUtil;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 
@@ -62,36 +63,63 @@ public class StudentService {
 
     public List<Student> parseExcel(InputStream is, String fileName) throws IOException {
         List<Student> list = new ArrayList<>();
-        Workbook wb = fileName.endsWith(".xlsx") ? new XSSFWorkbook(is) : new HSSFWorkbook(is);
+        Workbook wb;
+        try {
+            wb = fileName.endsWith(".xlsx") ? new XSSFWorkbook(is) : new HSSFWorkbook(is);
+        } catch (Exception e) {
+            throw new IOException("无法读取Excel文件，请确认文件格式正确且未加密: " + e.getMessage());
+        }
         Sheet sheet = wb.getSheetAt(0);
+        if (sheet == null) { wb.close(); return list; }
+
+        // 获取列数（前3行最大列数）自动适配
+        int maxCols = 0;
+        for (int r = 0; r <= Math.min(sheet.getLastRowNum(), 2); r++) {
+            Row row = sheet.getRow(r);
+            if (row != null && row.getLastCellNum() > maxCols) maxCols = row.getLastCellNum();
+        }
+        if (maxCols < 2) maxCols = 3;
+
         int start = 0;
-        boolean hasGender = false;  // 是否包含性别列
+        boolean hasGender = false;
         Row hdr = sheet.getRow(0);
-        if (hdr != null && hdr.getCell(0) != null) {
-            String v = getStr(hdr.getCell(0));
-            if ("学号".equals(v) || "姓名".equals(v) || "name".equalsIgnoreCase(v)) {
+        if (hdr != null) {
+            String firstCell = getStr(hdr.getCell(0)).trim();
+            if ("学号".equals(firstCell) || "姓名".equals(firstCell)
+                    || "student_id".equalsIgnoreCase(firstCell) || "name".equalsIgnoreCase(firstCell)) {
                 start = 1;
-                // 检测表头是否有"性别"列
-                for (int c = 0; c <= 3; c++) {
+                for (int c = 0; c < maxCols; c++) {
                     if ("性别".equals(getStr(hdr.getCell(c)).trim())) { hasGender = true; break; }
                 }
             }
         }
+
         for (int i = start; i <= sheet.getLastRowNum(); i++) {
             Row row = sheet.getRow(i);
             if (row == null) continue;
+
             String sid = getStr(row.getCell(0)).trim();
             String name = getStr(row.getCell(1)).trim();
-            // 兼容4列(含性别)和3列(无性别)格式
+            // 全空行跳过
+            if (sid.isEmpty() && name.isEmpty()) {
+                // 检测该行是否全为空
+                boolean allEmpty = true;
+                for (int c = 0; c < maxCols; c++) {
+                    if (!getStr(row.getCell(c)).trim().isEmpty()) { allEmpty = false; break; }
+                }
+                if (allEmpty) continue;
+            }
+
             String gender, cls;
-            if (hasGender) {
+            if (hasGender || maxCols >= 4) {
                 gender = getStr(row.getCell(2)).trim();
                 cls = getStr(row.getCell(3)).trim();
             } else {
                 cls = getStr(row.getCell(2)).trim();
                 gender = "";
             }
-            if (!sid.isEmpty() || !name.isEmpty()) list.add(new Student(sid, name, gender, cls));
+            if (!sid.isEmpty() || !name.isEmpty())
+                list.add(new Student(sid, name, gender, cls));
         }
         wb.close(); return list;
     }
@@ -120,12 +148,35 @@ public class StudentService {
 
     private static String getStr(Cell cell) {
         if (cell == null) return "";
-        switch (cell.getCellType()) {
-            case STRING: return cell.getStringCellValue();
-            case NUMERIC:
-                double v = cell.getNumericCellValue();
-                return v == Math.floor(v) && !Double.isInfinite(v) ? String.valueOf((long) v) : String.valueOf(v);
-            default: return "";
+        try {
+            switch (cell.getCellType()) {
+                case STRING:
+                    return cell.getStringCellValue();
+                case NUMERIC:
+                    if (DateUtil.isCellDateFormatted(cell)) {
+                        return new java.text.SimpleDateFormat("yyyy-MM-dd").format(cell.getDateCellValue());
+                    }
+                    double v = cell.getNumericCellValue();
+                    if (v == Math.floor(v) && !Double.isInfinite(v))
+                        return String.valueOf((long) v);
+                    return String.valueOf(v);
+                case BOOLEAN:
+                    return String.valueOf(cell.getBooleanCellValue());
+                case FORMULA:
+                    // 尝试获取公式计算结果的值
+                    try {
+                        DataFormatter df = new DataFormatter();
+                        return df.formatCellValue(cell);
+                    } catch (Exception e) {
+                        return cell.getStringCellValue();
+                    }
+                case BLANK:
+                    return "";
+                default:
+                    return "";
+            }
+        } catch (Exception e) {
+            return "";
         }
     }
 }
